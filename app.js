@@ -61,9 +61,9 @@ app.get('/getaway', (req, res) => {
         }
         const backTime = new Date(getawayFlight.time.getTime() + duration*60*60*1000);
         ckanImport(backTime.toISOString().slice(0,13), backFlights => {
-            let relevantInbound = backFlights.filter(flight => {
-                return (flight.CHCINT == 'null' && getDate(flight.CHPTOL).getTime() > backTime.getTime());
-            })
+            const relevantInbound = backFlights.filter(flight => {
+                return (!flight.CHCINT && getDate(flight.CHPTOL).getTime() > backTime.getTime());
+            });
             getawayFlightBack = {'flightCode':relevantInbound[0].CHOPER + relevantInbound[0].CHFLTN,
                                  'time':getDate(relevantInbound[0].CHPTOL)};
             for (let i = 1; i < relevantInbound.length; i++) {
@@ -75,7 +75,7 @@ app.get('/getaway', (req, res) => {
             }
             console.log(getawayFlight.time);
             console.log(getawayFlightBack.time);
-            res.status(200).json(getawayFlight.flightCode, getawayFlightBack.flightCode);
+            res.status(200).json({departure:getawayFlight.flightCode, arrival:getawayFlightBack.flightCode});
         });
     });
 });
