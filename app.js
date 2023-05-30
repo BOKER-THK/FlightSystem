@@ -7,10 +7,12 @@ client.requestType = 'GET';
 const app = express();
 const API_URL = 'https://data.gov.il/api/3/action/datastore_search?resource_id=e83f763b-b7d7-479e-b172-ae981ddc6de5&limit=10000';
 
+// Get the UTC format time
 const getDate = date => {
     return new Date(date + 'Z');
 }
 
+// Insert GMT+2 into the time variable.
 const getIsraelTime = () => {
     // get the current time
     const time = new Date();
@@ -21,6 +23,13 @@ const getIsraelTime = () => {
     // return the time as a string without the millisecond
     return time;
 }
+
+// The fucntion I fetched datawith  when I started working on the project.
+// For better readability, I switched to the ckanImport function.
+//
+// The main difference between the functions is that importData returns 
+// a Promise while ckanImport uses a callback function parameter to execute
+// code inside the function.
 
 const importData = async (query='') => {
     if (query) {
@@ -43,39 +52,34 @@ const ckanImport = (query='', callback) => {
     });
 };
 
+const getNextFlight = (inbound=false, flights, time) => {
+    const relevant = flights.filter(flight => {
+        return ((inbound ? !flight.CHCINT : flight.CHCINT) &&
+             getDate(flight.CHPTOL).getTime() > time.getTime());
+    })
+    getawayFlight = {'flightCode':relevant[0].CHOPER + relevant[0].CHFLTN,
+                     'time':getDate(relevant[0].CHPTOL)};
+    for (let i = 1; i < relevant.length; i++) {
+        const tempTime = getDate(relevant[i].CHPTOL);
+        if (getawayFlight.time.getTime() > tempTime.getTime()) {
+            getawayFlight.flightCode = relevant[i].CHOPER + relevant[i].CHFLTN;
+            getawayFlight.time = tempTime;
+        }
+    }
+    return getawayFlight;
+};
+
 app.get('/getaway', (req, res) => {
     const time = getIsraelTime();
     const duration = req.header('duration') || 1;
     ckanImport(time.toISOString().slice(0, 13), flights => {
-        const relevantOutbound = flights.filter(flight => {
-            return (flight.CHCINT != 'null' && getDate(flight.CHPTOL).getTime() > time.getTime());
-        })
-        getawayFlight = {'flightCode':relevantOutbound[0].CHOPER + relevantOutbound[0].CHFLTN,
-                         'time':getDate(relevantOutbound[0].CHPTOL)};
-        for (let i = 1; i < relevantOutbound.length; i++) {
-            const tempTime = getDate(relevantOutbound[i].CHPTOL);
-            if (getawayFlight.time.getTime() > tempTime.getTime()) {
-                getawayFlight.flightCode = relevantOutbound[i].CHOPER + relevantOutbound[i].CHFLTN;
-                getawayFlight.time = tempTime;
-            }
-        }
+        const outboundGetaway = getNextFlight(false, flights, time);
         const backTime = new Date(getawayFlight.time.getTime() + duration*60*60*1000);
         ckanImport(backTime.toISOString().slice(0,13), backFlights => {
-            const relevantInbound = backFlights.filter(flight => {
-                return (!flight.CHCINT && getDate(flight.CHPTOL).getTime() > backTime.getTime());
-            });
-            getawayFlightBack = {'flightCode':relevantInbound[0].CHOPER + relevantInbound[0].CHFLTN,
-                                 'time':getDate(relevantInbound[0].CHPTOL)};
-            for (let i = 1; i < relevantInbound.length; i++) {
-                const tempTime = getDate(relevantInbound[i].CHPTOL);
-                if (getawayFlightBack.time.getTime() > tempTime.getTime()) {
-                    getawayFlightBack.flightCode = relevantInbound[i].CHOPER + relevantInbound[i].CHFLTN;
-                    getawayFlightBack.time = tempTime;
-                }
-            }
-            console.log(getawayFlight.time);
-            console.log(getawayFlightBack.time);
-            res.status(200).json({departure:getawayFlight.flightCode, arrival:getawayFlightBack.flightCode});
+            const inboundGetaway = getNextFlight(true, backFlights, backTime);
+            console.log(outboundGetaway);
+            console.log(inboundGetaway);
+            res.status(200).json({departure:outboundGetaway.flightCode, arrival:inboundGetaway.flightCode});
         });
     });
 });
