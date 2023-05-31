@@ -47,19 +47,10 @@ const ckanImport = (callback, query='') => {
         limit: '300'
     },
     (error, response) => {
-        if (error) {console.error(error);}
-        else {callback(response.result.records);}
+        if (error) { console.error(error); }
+        else { callback(response.result.records);}
     });
 };
-
-const getDates = (initialDate) => {
-    let res = [];
-    for (let i = 0; i < 5; i++) {
-        tempDate = new Date(initialDate.getTime() + 1000*60*60*i);
-        res.push(tempDate.toISOString().slice(0, 13));
-    }
-    return res;
-}
 
 const getNextFlight = (flights, time, condition) => {
     const relevant = flights.filter(flight => {
@@ -88,17 +79,23 @@ app.get('/getaway', (req, res) => {
     ckanImport(flights => {
         const outboundGetaway = getNextFlight(flights, time, outbound => { return outbound; });
         const backTime = new Date(outboundGetaway.time.getTime() + duration*60*60*1000);
-        ckanImport(backFlights => {
-            const inboundGetaway = getNextFlight(backFlights, backTime,
-                (outbound, country) => { return !outbound && (country == outboundGetaway.country); });
-            if (!Object.keys(inboundGetaway).length || !Object.keys(outboundGetaway).length) {
-                res.status(200).json({});
-            }
-            else { 
-                res.status(200).json({departure:outboundGetaway.flightCode, arrival:inboundGetaway.flightCode});
-            }
-        }, getDates(backTime));
-    }, getDates(time));
+        for (let i = 0; i < 24; i++) {
+            tempDate = new Date(backTime.getTime() + 1000*60*60*i);
+            ckanImport(backFlights => {
+                const inboundGetaway = getNextFlight(backFlights, tempDate,
+                    (outbound, country) => { return !outbound && (country == outboundGetaway.country); });
+                if (Object.keys(inboundGetaway).length || Object.keys(outboundGetaway).length) {
+                    console.log('here1');
+                    res.status(200).json({ departure:outboundGetaway.flightCode,
+                                           arrival:inboundGetaway.flightCode });
+                }
+            }, tempDate.toISOString().slice(0, 13));
+        }
+        if (!res.headersSent) {
+            console.log('here2');
+            res.status(200).json({});
+        }
+    }, time.toISOString().slice(0, 13));
 });
 
 app.get('/delayedCount', (req, res) => {
@@ -140,8 +137,7 @@ app.get('/mostPopularDestination', (req, res) => {
         flights.forEach(flight => {
             const city = flight.CHLOC1T;
             if (popularity.has(city)) {
-                popularity.set(city, 
-                    popularity.get(city) + 1);
+                popularity.set(city, popularity.get(city) + 1);
             } else {
                 popularity.set(city, 1);
             }
