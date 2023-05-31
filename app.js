@@ -40,7 +40,7 @@ const importData = async (query='') => {
     return data.result.records;
 }
 
-const ckanImport = (query='', callback) => {
+const ckanImport = (callback, query='') => {
     client.action('datastore_search', {
         resource_id: 'e83f763b-b7d7-479e-b172-ae981ddc6de5',
         q: query,
@@ -54,9 +54,11 @@ const ckanImport = (query='', callback) => {
 
 const getNextFlight = (inbound=false, flights, time) => {
     const relevant = flights.filter(flight => {
-        return ((inbound ? !flight.CHCINT : flight.CHCINT) &&
-             getDate(flight.CHPTOL).getTime() > time.getTime());
+        return ((inbound ? !flight.CHCINT : flight.CHCINT) && getDate(flight.CHPTOL).getTime() > time.getTime());
     })
+    if (relevant == []) {
+        return {};
+    }
     getawayFlight = {'flightCode':relevant[0].CHOPER + relevant[0].CHFLTN,
                      'time':getDate(relevant[0].CHPTOL)};
     for (let i = 1; i < relevant.length; i++) {
@@ -72,16 +74,14 @@ const getNextFlight = (inbound=false, flights, time) => {
 app.get('/getaway', (req, res) => {
     const time = getIsraelTime();
     const duration = req.header('duration') || 1;
-    ckanImport(time.toISOString().slice(0, 13), flights => {
+    ckanImport(flights => {
         const outboundGetaway = getNextFlight(false, flights, time);
         const backTime = new Date(getawayFlight.time.getTime() + duration*60*60*1000);
-        ckanImport(backTime.toISOString().slice(0,13), backFlights => {
+        ckanImport(backFlights => {
             const inboundGetaway = getNextFlight(true, backFlights, backTime);
-            console.log(outboundGetaway);
-            console.log(inboundGetaway);
             res.status(200).json({departure:outboundGetaway.flightCode, arrival:inboundGetaway.flightCode});
-        });
-    });
+        }, backTime.toISOString().slice(0,13));
+    }, time.toISOString().slice(0, 13));
 });
 
 app.get('/delayedCount', (req, res) => {
@@ -100,7 +100,7 @@ app.get('/flightCount', (req, res) => {
     const inputCountry = req.header('country');
     const type = req.header('type');
     const query = inputCountry ? {'CHLOCCT':inputCountry} : '';
-    ckanImport(query, flights => {
+    ckanImport(flights => {
         if (type === 'all') {
             res.status(200).send(flights.length.toString());
         } else {
@@ -110,7 +110,7 @@ app.get('/flightCount', (req, res) => {
             res.status(200).send(((type === 'inbound') ?
                 ret : flights.length - ret).toString());
         }
-    });
+    }, query);
 });
 
 app.get('/mostPopularDestination', (req, res) => {
@@ -118,7 +118,7 @@ app.get('/mostPopularDestination', (req, res) => {
         const popularity = new Map();
         let mostPopular = '';
         flights = flights.filter(flight => {
-            return flight.CHCINT != 'null';
+            return flight.CHCINT;
         });
         flights.forEach(flight => {
             const city = flight.CHLOC1T;
