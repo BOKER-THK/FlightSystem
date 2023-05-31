@@ -52,19 +52,21 @@ const ckanImport = (callback, query='') => {
     });
 };
 
-const getNextFlight = (inbound=false, flights, time) => {
+const getNextFlight = (flights, time, condition) => {
     const relevant = flights.filter(flight => {
-        return ((inbound ? !flight.CHCINT : flight.CHCINT) && getDate(flight.CHPTOL).getTime() > time.getTime());
+        return (condition(flight.CHCINT, flight.CHLOCCT) && getDate(flight.CHPTOL).getTime() > time.getTime());
     })
-    if (relevant == []) {
+    if (!relevant.length) {
         return {};
     }
     getawayFlight = {'flightCode':relevant[0].CHOPER + relevant[0].CHFLTN,
-                     'time':getDate(relevant[0].CHPTOL)};
+                     'time':getDate(relevant[0].CHPTOL),
+                     'country':relevant[0].CHLOCCT};
     for (let i = 1; i < relevant.length; i++) {
         const tempTime = getDate(relevant[i].CHPTOL);
         if (getawayFlight.time.getTime() > tempTime.getTime()) {
             getawayFlight.flightCode = relevant[i].CHOPER + relevant[i].CHFLTN;
+            getawayFlight.country = relevant[i].CHLOCCT;
             getawayFlight.time = tempTime;
         }
     }
@@ -75,11 +77,17 @@ app.get('/getaway', (req, res) => {
     const time = getIsraelTime();
     const duration = req.header('duration') || 1;
     ckanImport(flights => {
-        const outboundGetaway = getNextFlight(false, flights, time);
-        const backTime = new Date(getawayFlight.time.getTime() + duration*60*60*1000);
+        const outboundGetaway = getNextFlight(flights, time, outbound => { return outbound; });
+        const backTime = new Date(outboundGetaway.time.getTime() + duration*60*60*1000);
         ckanImport(backFlights => {
-            const inboundGetaway = getNextFlight(true, backFlights, backTime);
-            res.status(200).json({departure:outboundGetaway.flightCode, arrival:inboundGetaway.flightCode});
+            const inboundGetaway = getNextFlight(backFlights, backTime,
+                (outbound, country) => { return !outbound && (country == outboundGetaway.country); });
+            if (!Object.keys(inboundGetaway).length || !Object.keys(outboundGetaway).length) {
+                res.status(200).json({});
+            }
+            else { 
+                res.status(200).json({departure:outboundGetaway.flightCode, arrival:inboundGetaway.flightCode});
+            }
         }, backTime.toISOString().slice(0,13));
     }, time.toISOString().slice(0, 13));
 });
@@ -88,7 +96,7 @@ app.get('/delayedCount', (req, res) => {
     ckanImport(flights => {
         let ret = 0;
             flights.forEach((flight, i) => {
-                if (flight.CHSTOL != flight.CHPTOL) {
+                if (getDate(flight.CHSTOL).getTime() < getDate(flight.CHPTOL).getTime()) {
                     ret++;
                 }
             });
