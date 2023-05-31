@@ -1,13 +1,13 @@
 const express = require('express');
 const ckan = require('ckan')
 
+const app = express();
+const API_URL = 'https://data.gov.il/api/3/action/datastore_search?resource_id=e83f763b-b7d7-479e-b172-ae981ddc6de5&limit=300';
+
 const client = new ckan.Client('https://data.gov.il');
 client.requestType = 'GET';
 
-const app = express();
-const API_URL = 'https://data.gov.il/api/3/action/datastore_search?resource_id=e83f763b-b7d7-479e-b172-ae981ddc6de5&limit=10000';
-
-// Get the UTC format time
+// Get the UTC formatted time
 const getDate = date => {
     return new Date(date + 'Z');
 }
@@ -52,6 +52,15 @@ const ckanImport = (callback, query='') => {
     });
 };
 
+const getDates = (initialDate) => {
+    let res = [];
+    for (let i = 0; i < 5; i++) {
+        tempDate = new Date(initialDate.getTime() + 1000*60*60*i);
+        res.push(tempDate.toISOString().slice(0, 13));
+    }
+    return res;
+}
+
 const getNextFlight = (flights, time, condition) => {
     const relevant = flights.filter(flight => {
         return (condition(flight.CHCINT, flight.CHLOCCT) && getDate(flight.CHPTOL).getTime() > time.getTime());
@@ -88,8 +97,8 @@ app.get('/getaway', (req, res) => {
             else { 
                 res.status(200).json({departure:outboundGetaway.flightCode, arrival:inboundGetaway.flightCode});
             }
-        }, backTime.toISOString().slice(0,13));
-    }, time.toISOString().slice(0, 13));
+        }, getDates(backTime));
+    }, getDates(time));
 });
 
 app.get('/delayedCount', (req, res) => {
