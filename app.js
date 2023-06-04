@@ -107,16 +107,29 @@ app.get('/getaway', (req, res, next) => {
         ckanImport(flights => {
             const outboundGetaway = getNextFlight(flights, time, outbound => { return outbound; });
             const backTime = new Date(outboundGetaway.time.getTime() + duration*60*60*1000);
-            ckanImport(backFlights => {
-                const inboundGetaway = getNextFlight(backFlights, backTime,
-                    (outbound, country) => { return !outbound && (country == outboundGetaway.country); });
-                if (!Object.keys(inboundGetaway).length || !Object.keys(outboundGetaway).length) {
+            const consecutiveHoursImport = (time, iteration=0) => {
+                if (iteration === 5) {
                     res.status(200).json({});
                 }
-                else { 
-                    res.status(200).json({departure:outboundGetaway.flightCode, arrival:inboundGetaway.flightCode});
+                else {
+                    const ret = new Promise((resolve, reject) => {
+                        ckanImport(backFlights => {
+                            const inboundGetaway = getNextFlight(backFlights, time,
+                                (outbound, country) => { return !outbound && (country === outboundGetaway.country); });
+                            if (Object.keys(inboundGetaway).length && Object.keys(outboundGetaway).length) {
+                                resolve(inboundGetaway);
+                            }
+                            else {
+                                consecutiveHoursImport(new Date(time.getTime() + 1000*60*60), iteration+1);
+                            }
+                        }, time.toISOString().slice(0, 13));
+                    });
+                    ret.then(flight => {
+                        res.status(200).json({departure:outboundGetaway.flightCode, arrival:flight.flightCode});
+                    });
                 }
-            }, backTime.toISOString().slice(0, 13));
+            };
+            consecutiveHoursImport(backTime);
         }, time.toISOString().slice(0, 13));
     }
     catch (error) {
