@@ -70,9 +70,11 @@ ckanImport = (callback, query='') => {
 // function is called.
 
 getNextFlight = (flights, time, condition) => {
+    console.log(time);
     const relevant = flights.filter(flight => {
         return (condition(flight.CHCINT, flight.CHLOCCT) && getDate(flight.CHPTOL).getTime() > time.getTime());
     })
+    console.log(relevant);
     if (!relevant.length) {
         return {};
     }
@@ -87,6 +89,7 @@ getNextFlight = (flights, time, condition) => {
             getawayFlight.time = tempTime;
         }
     }
+    console.log(getawayFlight);
     return getawayFlight;
 };
 
@@ -112,21 +115,20 @@ app.get('/getaway', (req, res, next) => {
                     res.status(200).json({});
                 }
                 else {
-                    const ret = new Promise((resolve, reject) => {
-                        ckanImport(backFlights => {
-                            const inboundGetaway = getNextFlight(backFlights, time,
-                                (outbound, country) => { return !outbound && (country === outboundGetaway.country); });
-                            if (Object.keys(inboundGetaway).length && Object.keys(outboundGetaway).length) {
-                                resolve(inboundGetaway);
-                            }
-                            else {
-                                consecutiveHoursImport(new Date(time.getTime() + 1000*60*60), iteration+1);
-                            }
-                        }, time.toISOString().slice(0, 13));
-                    });
-                    ret.then(flight => {
-                        res.status(200).json({departure:outboundGetaway.flightCode, arrival:flight.flightCode});
-                    });
+                    ckanImport(backFlights => {
+                        const inboundGetaway = getNextFlight(backFlights, time,
+                            (outbound, country) => { return !outbound && (country === outboundGetaway.country); });
+                        if (Object.keys(inboundGetaway).length && Object.keys(outboundGetaway).length) {
+                            console.log('resolved.');
+                            console.log("depart time: " + outboundGetaway.time.toISOString() + "country: " + outboundGetaway.country);
+                            console.log("return time: " + inboundGetaway.time.toISOString() + "country: " + inboundGetaway.country);
+                            res.status(200).json({departure:outboundGetaway.flightCode, arrival:flight.flightCode});
+                        }
+                        else {
+                            console.log('calling again');
+                            consecutiveHoursImport(new Date(time.getTime() + 1000*60*60), iteration+1);
+                        }
+                    }, time.toISOString().slice(0, 13));
                 }
             };
             consecutiveHoursImport(backTime);
