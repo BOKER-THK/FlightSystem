@@ -88,7 +88,6 @@ exports.getNextFlight = (flights, time, country) => {
             flight.CHLOCCT != 'ISRAEL');
     });
 
-    console.log(relevant);
     if (!relevant.length) {
         return {};
     }
