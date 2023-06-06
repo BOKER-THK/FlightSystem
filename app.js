@@ -174,10 +174,10 @@ app.get('/flightCount', (req, res) => {
             return !flight.CHCINT;
         }).length;
         if (type === 'inbound') {
-            res.status(200).send(ret);
+            res.status(200).send(ret.toString());
         }
         else if (type === 'outbound') {
-            res.status(200).send(flights.length - ret.toString());
+            res.status(200).send((flights.length - ret).toString());
         }
         else {
             res.status(200).send(flights.length.toString());
