@@ -69,10 +69,10 @@ exports.ckanImport = (callback, query='') => {
 // The two last conditions are sent from getaway when the
 // function is called.
 
-exports.getNextFlight = (flights, time, condition) => {
+exports.getNextFlight = (flights, time, country) => {
     console.log(time);
     const relevant = flights.filter(flight => {
-        return (condition(flight.CHCINT, flight.CHLOCCT) &&
+        return ((country ? (!flight.CHCINT && flight.CHLOCCT === country) : (flight.CHCINT)) &&
         exports.getDate(flight.CHPTOL).getTime() > time.getTime() &&
         flight.CHLOCCT != 'ISRAEL');
     })
@@ -93,4 +93,24 @@ exports.getNextFlight = (flights, time, condition) => {
     }
     console.log(getawayFlight);
     return getawayFlight;
+};
+
+
+exports.consecutiveHoursImport = (time, resolve, reject, country=null, max_iter=2, iteration=0) => {
+    if (iteration === max_iter) {
+        reject();
+    }
+    else {
+        exports.ckanImport(backFlights => {
+            const getawayFlight = exports.getNextFlight(backFlights, time, country);
+            if (Object.keys(getawayFlight).length) {
+                resolve(getawayFlight);
+            }
+            else {
+                console.log('calling again');
+                exports.consecutiveHoursImport(new Date(time.getTime() + 1000*60*60),
+                    resolve, reject, country, max_iter, iteration+1);
+            }
+        }, time.toISOString().slice(0, 13));
+    }
 };

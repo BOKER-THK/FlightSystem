@@ -18,32 +18,18 @@ app.get('/getaway', (req, res, next) => {
     try {
         const time = utils.getIsraelTime();
         const duration = req.header('duration') || 1;
-        utils.ckanImport(flights => {
-            const outboundGetaway = utils.getNextFlight(flights, time, outbound => { return outbound; });
-            const backTime = new Date(outboundGetaway.time.getTime() + duration*60*60*1000);
-            const consecutiveHoursImport = (time, iteration=0) => {
-                if (iteration === 24) {
-                    res.status(200).json({});
-                }
-                else {
-                    utils.ckanImport(backFlights => {
-                        const inboundGetaway = utils.getNextFlight(backFlights, time,
-                            (outbound, country) => { return !outbound && (country === outboundGetaway.country); });
-                        if (Object.keys(inboundGetaway).length && Object.keys(outboundGetaway).length) {
-                            console.log('resolved.');
-                            console.log("depart time: " + outboundGetaway.time.toISOString() + "country: " + outboundGetaway.country);
-                            console.log("return time: " + inboundGetaway.time.toISOString() + "country: " + inboundGetaway.country);
-                            res.status(200).json({departure:outboundGetaway.flightCode, arrival:inboundGetaway.flightCode});
-                        }
-                        else {
-                            console.log('calling again');
-                            consecutiveHoursImport(new Date(time.getTime() + 1000*60*60), iteration+1);
-                        }
-                    }, time.toISOString().slice(0, 13));
-                }
-            };
-            consecutiveHoursImport(backTime);
-        }, time.toISOString().slice(0, 13));
+
+        utils.consecutiveHoursImport(time,
+            (outboundGetaway) => {
+                const backTime = new Date(outboundGetaway.time.getTime() + duration*60*60*1000);
+                utils.consecutiveHoursImport(backTime,
+                    (inboundGetaway) => {
+                        res.status(200).json({ departure:outboundGetaway.flightCode, arrival:inboundGetaway.flightCode });
+                    }, 
+                    () => { res.status(200).json({}); },
+                    outboundGetaway.country, 24);
+            },
+            () => { res.status(200).json({}); });
     }
     catch (error) {
         next(error);
