@@ -29,7 +29,8 @@ app.get('/getaway', (req, res, next) => {
                     () => { res.status(200).json({}); },
                     outboundGetaway.country, 24);
             },
-            () => { res.status(200).json({}); });
+            () => { res.status(200).json({}); }
+        );
     }
     catch (error) {
         next(error);

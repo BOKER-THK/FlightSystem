@@ -12,6 +12,7 @@ exports.getDate = date => {
     return new Date(date + 'Z');
 };
 
+
 // Insert GMT+2 into the time variable.
 exports.getIsraelTime = () => {
     // get the current time
@@ -24,12 +25,13 @@ exports.getIsraelTime = () => {
     return time;
 };
 
+
 // The fucntion I fetched data with when I started working on the project.
 // For better readability, I switched to the ckanImport function.
 //
 // The main difference between the functions is that importData returns 
-// a Promise while ckanImport uses a callback function parameter to execute
-// code inside the function.
+// a Promise, while ckanImport uses a callback function parameter to use the
+// data retrieved from the API.
 
 exports.importData = async (query='') => {
     if (query) {
@@ -40,12 +42,14 @@ exports.importData = async (query='') => {
     return data.result.records;
 };
 
+
 // The function accepts two parameters:
+//
 //    - callback: a function that will be executed on a
 //      successful fetching attempt.
 //    - query: a ckan query that can filter the API.
 //
-// In case the fetch fails, 
+// In case the fetch fails, we an error is thrown.
 
 exports.ckanImport = (callback, query='') => {
     client.action('datastore_search', {
@@ -59,15 +63,19 @@ exports.ckanImport = (callback, query='') => {
     });
 }
 
+
 // An assistant function to the getaway route.
-// This function retrieves the next flight that is available,
+// This function retrieves the next flight that's available,
 // according to certain conditions:
-//    - the closest to time parameter.
+//
+//    - the closest to the 'time' parameter.
 //    - not from/to ISRAEL.
 //    - inbound or outbound.
-//    - departs from a certain country, when it's inbound.
-// The two last conditions are sent from getaway when the
-// function is called.
+//    - departs from a certain country (only for inbound).
+//
+// The last two conditions are determined by the value of the
+// 'country' parameter - null means outbound, and a name of a
+// country means it's inbound.
 
 exports.getNextFlight = (flights, time, country) => {
     console.log(time);
@@ -96,20 +104,47 @@ exports.getNextFlight = (flights, time, country) => {
 };
 
 
-exports.consecutiveHoursImport = (time, resolve, reject, country=null, max_iter=2, iteration=0) => {
+// This function calls ckanImport recursively until finding the
+// next flight that is available according to the coditions specified
+// in the getNextFlight function.
+//
+// It recieves 6 parameters:
+//
+//    - time : a Date object that contains the current hour the function
+//             currently checks.
+//    - resolve : a function to call in case a flight is found.
+//    - reject : a function to call in case max_iter was reached.
+//    - country : contains the country if the function searches for an
+//                inbound flight, and null for an outbound flight.
+//    - max_iter : the total number of hours checked by the function. each
+//                 hour is checked in a different recursive call.
+//    - iteration : a parameter that tracks the number of iterations
+//                  executed so far.
+//
+// The default values are targeted at an outbound country that requires 2
+// iterations. Those are the default values used for the outboundFlight call 
+// in /getaway.
+//
+// The global varable iteration is used to track the progress of the function.
+
+let iteration = 0;
+exports.consecutiveHoursImport = (time, resolve, reject, country=null, max_iter=2) => {
     if (iteration === max_iter) {
+        iteration=0;
         reject();
     }
     else {
         exports.ckanImport(backFlights => {
             const getawayFlight = exports.getNextFlight(backFlights, time, country);
             if (Object.keys(getawayFlight).length) {
+                iteration=0;
                 resolve(getawayFlight);
             }
             else {
                 console.log('calling again');
+                iteration++;
                 exports.consecutiveHoursImport(new Date(time.getTime() + 1000*60*60),
-                    resolve, reject, country, max_iter, iteration+1);
+                    resolve, reject, country, max_iter);
             }
         }, time.toISOString().slice(0, 13));
     }
