@@ -15,7 +15,9 @@ const app = express();
 // flight codes in JSON format.
 
 app.get('/getaway', (req, res, next) => {
+
     try {
+
         const time = utils.getIsraelTime();
         const duration = req.header('duration') || 1;
 
@@ -24,7 +26,8 @@ app.get('/getaway', (req, res, next) => {
                 const backTime = new Date(outboundGetaway.time.getTime() + duration*60*60*1000);
                 utils.consecutiveHoursImport(backTime,
                     (inboundGetaway) => {
-                        res.status(200).json({ departure:outboundGetaway.flightCode, arrival:inboundGetaway.flightCode });
+                        res.status(200).json({ departure:outboundGetaway.flightCode,
+                            arrival:inboundGetaway.flightCode });
                     }, 
                     () => { res.status(200).json({}); },
                     outboundGetaway.country, 24);
@@ -42,13 +45,15 @@ app.get('/getaway', (req, res, next) => {
 // and returns the amount of such instances.
 
 app.get('/delayedCount', (req, res) => {
+
     utils.ckanImport(flights => {
         let ret = 0;
-            flights.forEach((flight, i) => {
-                if (utils.getDate(flight.CHSTOL).getTime() < utils.getDate(flight.CHPTOL).getTime()) {
-                    ret++;
-                }
-            });
+        flights.forEach((flight, i) => {
+            if (utils.getDate(flight.CHSTOL).getTime() < utils.getDate(flight.CHPTOL).getTime()) {
+                ret++;
+            }
+        });
+
         res.status(200).send(ret.toString());
     });
 });
@@ -64,13 +69,16 @@ app.get('/delayedCount', (req, res) => {
 // the default type is 'all'.
 
 app.get('/flightCount', (req, res) => {
+
     const inputCountry = req.header('country');
     const type = req.header('type');
     const query = inputCountry ? {'CHLOCCT':inputCountry} : '';
+
     utils.ckanImport(flights => {
         const ret = flights.filter(flight => {
             return !flight.CHCINT;
         }).length;
+
         if (type === 'inbound') {
             res.status(200).send(ret.toString());
         }
@@ -90,26 +98,33 @@ app.get('/flightCount', (req, res) => {
 // iterates over it to find the largest.
 
 app.get('/mostPopularDestination', (req, res) => {
+
     utils.ckanImport(flights => {
         const popularity = new Map();
         let mostPopular = '';
+
         flights = flights.filter(flight => {
             return flight.CHCINT;
         });
+
         flights.forEach(flight => {
             const city = flight.CHLOC1T;
+
             if (popularity.has(city)) {
                 popularity.set(city, popularity.get(city) + 1);
-            } else {
+            } 
+            else {
                 popularity.set(city, 1);
             }
-        })
+        });
+
         mostPopular = popularity.keys().next().value;
         for (const [key, value] of popularity) {
             if (popularity.get(mostPopular) < value) {
                 mostPopular = key;
             }
         }
+
         res.status(200).send(mostPopular);
     });
 });
@@ -130,10 +145,12 @@ app.use((req, res, next) => {
 
 app.use((error, req, res, next) => {
     res.status = error.status || 500;
+
     res.json({
         status: error.status,
         message: error.message,
     })
 });
+
 
 module.exports = app;

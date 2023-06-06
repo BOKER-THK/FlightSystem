@@ -37,6 +37,7 @@ exports.importData = async (query='') => {
     if (query) {
         query += '&q=' + JSON.stringify(query);
     }
+
     const rawData = await fetch(API_URL + query);
     const data = await rawData.json();
     return data.result.records;
@@ -52,6 +53,7 @@ exports.importData = async (query='') => {
 // In case the fetch fails, we an error is thrown.
 
 exports.ckanImport = (callback, query='') => {
+
     client.action('datastore_search', {
         resource_id: 'e83f763b-b7d7-479e-b172-ae981ddc6de5',
         q: query,
@@ -78,19 +80,23 @@ exports.ckanImport = (callback, query='') => {
 // country means it's inbound.
 
 exports.getNextFlight = (flights, time, country) => {
+
     console.log(time);
     const relevant = flights.filter(flight => {
         return ((country ? (!flight.CHCINT && flight.CHLOCCT === country) : (flight.CHCINT)) &&
-        exports.getDate(flight.CHPTOL).getTime() > time.getTime() &&
-        flight.CHLOCCT != 'ISRAEL');
-    })
+            exports.getDate(flight.CHPTOL).getTime() > time.getTime() &&
+            flight.CHLOCCT != 'ISRAEL');
+    });
+
     console.log(relevant);
     if (!relevant.length) {
         return {};
     }
+
     getawayFlight = {'flightCode': relevant[0].CHOPER + relevant[0].CHFLTN,
                     'time': exports.getDate(relevant[0].CHPTOL),
                     'country': relevant[0].CHLOCCT};
+
     for (let i = 1; i < relevant.length; i++) {
         const tempTime = exports.getDate(relevant[i].CHPTOL);
         if (getawayFlight.time.getTime() > tempTime.getTime()) {
@@ -99,6 +105,7 @@ exports.getNextFlight = (flights, time, country) => {
             getawayFlight.time = tempTime;
         }
     }
+
     console.log(getawayFlight);
     return getawayFlight;
 };
@@ -129,17 +136,21 @@ exports.getNextFlight = (flights, time, country) => {
 
 let iteration = 0;
 exports.consecutiveHoursImport = (time, resolve, reject, country=null, max_iter=2) => {
+
     if (iteration === max_iter) {
         iteration=0;
         reject();
     }
+
     else {
         exports.ckanImport(backFlights => {
             const getawayFlight = exports.getNextFlight(backFlights, time, country);
+
             if (Object.keys(getawayFlight).length) {
                 iteration=0;
                 resolve(getawayFlight);
             }
+
             else {
                 console.log('calling again');
                 iteration++;
