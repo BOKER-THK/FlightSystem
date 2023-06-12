@@ -52,7 +52,7 @@ exports.importData = async (query='') => {
 //
 // In case the fetch fails, we an error is thrown.
 
-exports.ckanImport = (callback, query='') => {
+exports.ckanImport = (callback, errorCall, query='') => {
 
     client.action('datastore_search', {
         resource_id: 'e83f763b-b7d7-479e-b172-ae981ddc6de5',
@@ -60,7 +60,11 @@ exports.ckanImport = (callback, query='') => {
         limit: '300'
     },
     (error, response) => {
-        if (error) { throw new Error(error); }
+        if (error) { 
+            const error = new Error('data resource unavailable');
+            error.status = 404;
+            errorCall(error);
+        }
         else { callback(response.result.records);}
     });
 }
@@ -92,14 +96,14 @@ exports.getNextFlight = (flights, time, country) => {
         return {};
     }
 
-    getawayFlight = {'flightCode': relevant[0].CHOPER + relevant[0].CHFLTN,
+    getawayFlight = {'flightCode': relevant[0].CHOPER + '-' + relevant[0].CHFLTN,
                     'time': exports.getDate(relevant[0].CHPTOL),
                     'country': relevant[0].CHLOCCT};
 
     for (let i = 1; i < relevant.length; i++) {
         const tempTime = exports.getDate(relevant[i].CHPTOL);
         if (getawayFlight.time.getTime() > tempTime.getTime()) {
-            getawayFlight.flightCode = relevant[i].CHOPER + relevant[i].CHFLTN;
+            getawayFlight.flightCode = relevant[i].CHOPER + '-' + relevant[i].CHFLTN;
             getawayFlight.country = relevant[i].CHLOCCT;
             getawayFlight.time = tempTime;
         }
@@ -117,36 +121,41 @@ exports.getNextFlight = (flights, time, country) => {
 // It recieves 6 parameters:
 //
 //    - time : a Date object that contains the current hour the function
-//             currently checks.
+//             checks.
 //    - resolve : a function to call in case a flight is found.
 //    - reject : a function to call in case max_iter was reached.
 //    - country : contains the country if the function searches for an
 //                inbound flight, and null for an outbound flight.
 //    - max_iter : the total number of hours checked by the function. each
 //                 hour is checked in a different recursive call.
-//    - iteration : a parameter that tracks the number of iterations
-//                  executed so far.
 //
 // The default values are targeted at an outbound country that requires 2
 // iterations. Those are the default values used for the outboundFlight call 
 // in /getaway.
 //
-// The global varable iteration is used to track the progress of the function.
+// The global variable iteration is used to track the progress of the function.
+// 
+// The global variable checkTime is used to store the earliest time the destined
+// flight can be at.
 
 let iteration = 0;
+let checkTime = 0;
 exports.consecutiveHoursImport = (time, resolve, reject, country=null, max_iter=2) => {
 
     if (iteration === max_iter) {
-        iteration=0;
-        reject();
+        iteration = 0;
+        resolve(null);
     }
 
     else {
+        if (iteration === 0) {
+            checkTime = time;
+        }
         exports.ckanImport(backFlights => {
-            const getawayFlight = exports.getNextFlight(backFlights, time, country);
+            const getawayFlight = exports.getNextFlight(backFlights, checkTime, country);
 
             if (Object.keys(getawayFlight).length) {
-                iteration=0;
+                iteration = 0;
                 resolve(getawayFlight);
             }
 
@@ -156,6 +165,6 @@ exports.consecutiveHoursImport = (time, resolve, reject, country=null, max_iter=
                 exports.consecutiveHoursImport(new Date(time.getTime() + 1000*60*60),
                     resolve, reject, country, max_iter);
             }
-        }, time.toISOString().slice(0, 13));
+        }, error => reject(error), time.toISOString().slice(0, 13));
     }
 };

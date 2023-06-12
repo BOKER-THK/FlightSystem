@@ -1,12 +1,14 @@
 const express = require('express');
 const utils = require('./utils');
+const cors = require('cors');
 
 const app = express();
 
+app.use(cors());
 
 // The function finds the next closest flight by querying the
 // current date to a percision of hours. After storing the values
-// in the outboundGeraway constant, the function proceeds to
+// in the outboundGetaway constant, the function proceeds to
 // search for a returning flight that will return from the same
 // country after a time gap that is determined by the 'duration'
 // header. 
@@ -23,16 +25,27 @@ app.get('/getaway', (req, res, next) => {
 
         utils.consecutiveHoursImport(time,
             (outboundGetaway) => {
-                const backTime = new Date(outboundGetaway.time.getTime() + duration*60*60*1000);
-                utils.consecutiveHoursImport(backTime,
-                    (inboundGetaway) => {
-                        res.status(200).json({ departure:outboundGetaway.flightCode,
-                            arrival:inboundGetaway.flightCode });
-                    }, 
-                    () => { res.status(200).json({}); },
-                    outboundGetaway.country, 24);
+                if (!outboundGetaway) {
+                    res.status(200).json({});
+                }
+                else {
+                    const backTime = new Date(outboundGetaway.time.getTime() + duration*60*60*1000);
+                    utils.consecutiveHoursImport(backTime,
+                        (inboundGetaway) => {
+                            if (!inboundGetaway) {
+                                res.status(200).json({});
+                            }
+                            else {
+                                res.status(200).json({ departure:outboundGetaway.flightCode,
+                                    arrival:inboundGetaway.flightCode });
+                            }
+                        }, 
+                        error => next(error),
+                        outboundGetaway.country, 24);
+                }
             },
-            () => { res.status(200).json({}); }
+            error => next(error)
+            
         );
     }
     catch (error) {
@@ -44,8 +57,7 @@ app.get('/getaway', (req, res, next) => {
 // departure time is earlier than the real departure time,
 // and returns the amount of such instances.
 
-app.get('/delayedCount', (req, res) => {
-
+app.get('/delayedCount', (req, res, next) => {
     utils.ckanImport(flights => {
         let ret = 0;
         flights.forEach((flight, i) => {
@@ -53,9 +65,8 @@ app.get('/delayedCount', (req, res) => {
                 ret++;
             }
         });
-
         res.status(200).send(ret.toString());
-    });
+    }, error => next(error));
 });
     
 // The function accepts two headers:
@@ -72,7 +83,7 @@ app.get('/flightCount', (req, res) => {
 
     const inputCountry = req.header('country');
     const type = req.header('type');
-    const query = inputCountry ? {'CHLOCCT':inputCountry} : '';
+    const query = inputCountry ? { CHLOCCT: inputCountry } : {};
 
     utils.ckanImport(flights => {
         const ret = flights.filter(flight => {
@@ -88,7 +99,7 @@ app.get('/flightCount', (req, res) => {
         else {
             res.status(200).send(flights.length.toString());
         } 
-    }, query);
+    }, error => next(error), query);
 });
 
 // The function uses a Map object to find out which
@@ -126,7 +137,7 @@ app.get('/mostPopularDestination', (req, res) => {
         }
 
         res.status(200).send(mostPopular);
-    });
+    }, error => next(error));
 });
 
 // A useful way to handle all other routes as
@@ -145,11 +156,11 @@ app.use((req, res, next) => {
 
 app.use((error, req, res, next) => {
     res.status = error.status || 500;
-
+    console.log("error!");
     res.json({
-        status: error.status,
-        message: error.message,
-    })
+        type: 'error',
+        message: error.message
+    });
 });
 
 

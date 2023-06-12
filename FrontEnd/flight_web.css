@@ -1,0 +1,25 @@
+h3 {
+    margin: 0;
+    margin-bottom: 1.5rem;
+}
+
+.query-area,
+.results {
+    margin: 5% 30%;
+    padding: 2rem 1rem;
+    border: 2px solid darkgray;
+    height: 100px;
+    width: 250px;
+}
+
+.operations-list {
+    margin-right: 1rem;
+}
+
+.header-input {
+    display: flex;
+    height: 1.5rem;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 1rem;
+}

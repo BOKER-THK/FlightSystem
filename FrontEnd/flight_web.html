@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flight Services</title>
+    <link rel="stylesheet" type="text/css" href="flight_web.css" />
+</head>
+<body>
+    <div class="query-area">
+        <select id="operations", class="operations-list">
+            <option value="delayedCount">delayed flights</option>
+            <option value="flightCount">number of flights</option>
+            <option value="mostPopularDestination">most popular destination</option>
+            <option value="getaway">getaway planner</option>
+        </select>
+        <button id="apply_button">
+            apply
+        </button>
+        <div id="attributes"></div>
+    </div>
+    <div class="results">
+        <h3>OUTPUT</h3>
+        <div id="results"></div>
+    </div>
+
+    <script src="flight_web.js"></script>
+</body>
+</html>
